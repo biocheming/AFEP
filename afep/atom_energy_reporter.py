@@ -7,7 +7,7 @@ MIT License
 
 Copyright (c) 2018
 
-Weill Cornell Medicine and Authors
+Weill Cornell Medicine, Memorial Sloan Kettering Cancer Center, and Authors
 
 Authors:
 Yuanqing Wang
@@ -41,6 +41,13 @@ import mdtraj as md
 import netCDF4
 from netCDF4 import Dataset
 import warnings
+import time
+
+# NOTE:
+    # - currently only the most common energy were implemented
+
+# TODO:
+    # - implement AMOEBA forces
 
 class AtomEnergyReporter(object):
     """
@@ -131,7 +138,8 @@ class AtomEnergyReporter(object):
         self._out = Dataset(file_path ,'w')
 
         self._out.createDimension("time", None)
-        self._out.createVariable("time", "i8", ("time",))
+        times = self._out.createVariable("time", "i8", ("time",))
+        times.unit = str(self._reportInterval)
         self.time = 0
         # let the analyzer register for once
         self.registered = False
@@ -174,13 +182,21 @@ class AtomEnergyReporter(object):
             if self.idxs == None:
                 self.find_small_mol(simulation, state)
 
+            # set the attributes in Dataset
+            self._out.description = 'record of an OpenMM run'
+            self._out.history = 'created ' + time.ctime(time. time())
+
             # initialize the Dataset
             self._out.createDimension("atom", len(self.idxs))
             self._out.createVariable("atom", "i8", ("atom", ))
+            atoms_name = ["idx = %s; mass = %s" % (idx, simulation.system.getParticleMass(idx)) for idx in self.idxs]
+            self._out.setncattr('atoms_name', atoms_name)
 
             # get the forces
             self.forces = simulation.system.getForces()
             self.force_idx_mapping = [force for force in self.forces]
+            forces_name = [force.__class__.__name__ for force in self.forces]
+            self._out.setncattr('forces_name', forces_name)
 
             # create a force dimension, using idxs
             # and initialize the forces
@@ -190,7 +206,22 @@ class AtomEnergyReporter(object):
             # initialize the energy variable
             # that stands on the dimensions of: time, atom, and force
             self.energy_var = self._out.createVariable("energy", "f4", ("time", "atom", "force"))
+            self.energy_var.units = 'kJ/mol'
 
+            # keep a copy of all the positions
+            self._out.createDimension("xyz", 3)
+            self.pos_var = self._out.createVariable("pos", "f4", ("time", "atom", "xyz"))
+
+            # keep a copy of the parameters of atoms
+            param_array = np.zeros((len(self.idxs), 3))
+            for force in self.forces:
+                if force.__class__.__name__ == "NonbondedForce":
+                    for idx in self.idxs:
+                        charge, sigma, epsilon = force.getParticleParameters(idx)
+                        param_array[idx, 0], param_array[idx, 1], param_array[idx, 2] = charge._value, sigma._value, epsilon._value
+                        # note that the units here are: elementary charge, nanometer, kilojoule/mole
+
+            self._out.setncattr('param_array', param_array)
 
             # set the registered flag to True,
             # since you only need to do this once
@@ -203,6 +234,8 @@ class AtomEnergyReporter(object):
 
         # get the positions of the small molecules
         self.pos = tuple([state.getPositions()[idx] for idx in self.idxs])
+        pos_matrix = np.array([state.getPositions(asNumpy=True)[idx]._value for idx in self.idxs])
+        self.pos_var[self.time, :, :] = pos_matrix
 
         # analyze each force in the system
         for force_idx, force in enumerate(self.force_idx_mapping):
@@ -214,6 +247,7 @@ class AtomEnergyReporter(object):
 
             for atom_idx, energy in energy_dict.items():
                 self.energy_var[self.time, atom_idx, force_idx] = energy._value
+                # note that the unit here is kilojoule/mole
 
         # increase the time dimension by one
         self.time += 1
