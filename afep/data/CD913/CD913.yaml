@@ -1,0 +1,72 @@
+---
+version: '1.3'
+options:
+    checkpoint_interval: 50
+    experiments_dir: experiments/CD913
+    hydrogen_mass: 3.0 * amu
+    minimize: true
+    output_dir: ../..
+    pressure: 1*atmosphere
+    resume_setup: true
+    resume_simulation: true
+    temperature: 300*kelvin
+    verbose: true
+molecules:
+    CD:
+        antechamber:
+            charge_method: null
+        filepath: ../../../CD_out0.mol2
+    GUEST_913:
+        antechamber:
+            charge_method: null
+        filepath: ../../../913.mol2
+solvents:
+    pme:
+        clearance: 12*angstroms
+        ewald_error_tolerance: 0.0001
+        negative_ion: Cl-
+        nonbonded_cutoff: 12*angstroms
+        nonbonded_method: PME
+        positive_ion: Na+
+        switch_distance: 11*angstroms
+systems:
+    CD-913:
+        leap:
+            parameters: [leaprc.protein.ff14SB, leaprc.gaff, leaprc.water.tip4pew]
+        ligand: GUEST_913
+        receptor: CD
+        solvent: pme
+protocols:
+    binding-auto: !Ordered
+        complex:
+            alchemical_path:
+                lambda_electrostatics: [1.0, 0.84049824677127, 0.6713590426362612,
+                    0.4855288312553289, 0.2829695457103556, 0.08979369231363529, 0.0,
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+                lambda_sterics: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.9345878452294316,
+                    0.8545359815924443, 0.7860608770632803, 0.7148037030933967, 0.6513897177259915,
+                    0.5863672766184487, 0.5363672766184486, 0.49398234794408497, 0.443982347944085,
+                    0.40243059449320834, 0.36723460323220747, 0.3319906669216512,
+                    0.3020213297324443, 0.27543763787519343, 0.24939274461764155,
+                    0.2240388675224149, 0.1969404926184887, 0.15803161878155444, 0.12006310543522984,
+                    0.07006310543522984, 0.0]
+        solvent:
+            alchemical_path:
+                lambda_electrostatics: [1.0, 0.8333011025760546, 0.6687381616138182,
+                    0.48107554607724146, 0.2648644201074885, 0.03983645864867416,
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+                lambda_sterics: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.9135642547623615,
+                    0.8395158412785052, 0.7737075271902718, 0.6995141220375815, 0.6355103444409017,
+                    0.5855103444409017, 0.5243050964322732, 0.46230131853892553, 0.41230131853892554,
+                    0.37056612964794544, 0.33325054174132995, 0.30094236418782716,
+                    0.2720308030870262, 0.24269466221952035, 0.2158686670022286, 0.18993710179309028,
+                    0.16071748711755487, 0.12438549878975999, 0.07438549878975999,
+                    0.003608724880310603, 0.0]
+experiments:
+    protocol: binding-auto
+    restraint:
+        type: FlatBottom
+    sampler: sams
+    system: CD-913
