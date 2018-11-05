@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 """
-yank_afep_reporter.py
+yank_afep_analyzer.py
 
 MIT License
 
@@ -70,6 +70,9 @@ class YankAtomEnergyAnalyzer:
 
     $$
 
+    \Delta F_{AB}(a) = \frac{<\frac{\Delta u_k}{\Delta U}(e^(-\beta \Delta U) - 1)>}
+                            {<e^(\beta \Delta U) - 1>}
+
     u_{X_a} = \\
 
     \frac12(u_{electrostaic} + u_{Lennard-Jones} + u_{bonded} + u_{Urey-Bradley}) \\
@@ -78,7 +81,7 @@ class YankAtomEnergyAnalyzer:
 
     $$
 
-    further data analysis is needed
+    further data analysis might needed, and is enabled through .nc output
 
     ref:
     https://pubs.acs.org/doi/abs/10.1021/acs.jctc.8b00027
@@ -121,14 +124,20 @@ class YankAtomEnergyAnalyzer:
         # get the lambda schedules
         lambda_electrostatics_schedule = []
         lambda_sterics_schedule = []
+        beta_schedule = []
 
         states = self.reporter.read_thermodynamic_states()[0]
         for state in states:
             lambda_electrostatics_schedule.append(state.lambda_electrostatics)
             lambda_sterics_schedule.append(state.lambda_sterics)
+            beta_schedule.append(np.power(state.kT, -1))
+
+        self.lambda_electrostatics_schedule = lambda_electrostatics_schedule
+        self.lambda_sterics_schedule = lambda_sterics_schedule
+        self.beta_schedule = beta_schedule
 
         thermodynamic_states = self.reporter.read_replica_thermodynamic_states().flatten()
-
+        self._thermodynamic_states = thermodynamic_states
         # read checkpoint schedules
         checkpoint_interval = self.reporter._checkpoint_interval
         n_thermodynamic_states = thermodynamic_states.shape[0]
@@ -139,6 +148,16 @@ class YankAtomEnergyAnalyzer:
         self._checkpoint_lambda_electrostatics_schedule = checkpoint_lambda_electrostatics_schedule
         self._checkpoint_lambda_sterics_schedule = checkpoint_lambda_sterics_schedule
 
+        # create thermodynamic_states to checkpoints map
+        states_checkpoints_mapping = dict()
+        for state in self._thermodynamic_states:
+            states_checkpoints_mapping[state] = []
+        checkpoint_interval = self.reporter._checkpoint_interval
+        for idx, state in enumerate(self._thermodynamic_states):
+            if idx % checkpoint_interval == 0:
+                states_checkpoints_mapping[state].append(idx // checkpoint_interval)
+
+        self.states_checkpoints_mapping = states_checkpoints_mapping
 
     @property
     def checkpoint_schedule(self):
@@ -152,6 +171,10 @@ class YankAtomEnergyAnalyzer:
     def checkpoint_lambda_sterics_schedule(self):
         return copy.deepcopy(self._checkpoint_lambda_sterics_schedule)
 
+    @property
+    def thermodynamic_states(self):
+        return copy.deepcopy(self._thermodynamic_states)
+
 
     def read_positions(self, checkpoint_idx):
         """
@@ -164,66 +187,6 @@ class YankAtomEnergyAnalyzer:
 
         positions = self.reporter.read_sampler_states(self.checkpoint_schedule[checkpoint_idx])[0].positions
         return positions
-
-
-
-
-    #=========================================================================
-    # functions to calculate the energies associated with checkpoints
-    #=========================================================================
-
-    def _analyze_atom_energies_in_simulation_with_positions(self, positions, as_numpy = True):
-        """
-        to get the atom energies in a system (usually puppet) with certain position
-        note that this method will unapologetically modify the system
-
-        """
-
-        # set the simulation to match the positions
-        self.simulation.context.setPositions(positions)
-        self.pos = positions
-        self.simulation.step(1) # make one step with dummy integrator to get information on states
-
-        # initialize the result matrix
-        n_atoms = len(self.ligand_atoms)
-        res = dict()
-
-        # analyze each force
-        forces = self.simulation.system.getForces()
-        for force in forces:
-            name = force.__class__.__name__
-            if name == "NonbondedForce":
-                res[0] = self._analyze_nonbonded_force(force)
-            elif name == "HarmonicBondForce":
-                res[1] = self._analyze_harmonic_bond_force(force)
-            elif name == "HarmonicAngleForce":
-                res[2] = self._analyze_harmonic_angle_force(force)
-            elif name == "PeriodicTorsionForce":
-                res[3] = self._analyze_periodic_torsion_force(force)
-
-        if as_numpy == False:
-            return res
-
-        if as_numpy == True:
-            # the returning matrix will be in the shape of (n_atoms * 4)
-            # the columns represent, respectively:
-                # nonbonded force
-                # bond force
-                # angle force
-                # torsion force
-            # the element in i'th row and j'th column of the matrix is
-            # the j'th atom's i'th type of force
-
-            # TODO: set values without using for loop
-            res_matrix = np.zeros((n_atoms, 4))
-            for idx_force in range(4):
-                for idx_atom in range(n_atoms):
-                    res_matrix[idx_atom, idx_force] = res[idx_force][self.ligand_atoms[idx_atom]]._value
-            return res_matrix
-
-    def _analyze_alchemical_afep(self):
-        pass
-
 
     #=========================================================================
     # helper functions to analyze forces
@@ -484,3 +447,189 @@ class YankAtomEnergyAnalyzer:
         angle = np.arccos(np.true_divide(np.absolute(na_dot_nb), na_norm * nb_norm))
 
         return Quantity(angle, radian)
+
+
+
+    #=========================================================================
+    # functions to calculate the energies associated with checkpoints
+    #=========================================================================
+
+    def _analyze_atom_energies_in_simulation_with_positions(self, positions, as_numpy = True):
+        """
+        to get the atom energies in a system (usually puppet) with certain position
+        note that this method will unapologetically modify the system
+
+        params
+        ------
+        positions : xyz of each atoms, including that of solvents
+
+        returns
+        -------
+            as_numpy == True:
+                res_matrix : a matrix with shape (n_atoms, 4), recording the energy contribution of each part
+
+            as_numpy == False:
+                res : a dictionary version of the matrix, with keys being Quantity objects
+        """
+
+        # set the simulation to match the positions
+        self.simulation.context.setPositions(positions)
+        self.pos = positions
+        self.simulation.step(1) # make one step with dummy integrator to get information on states
+
+        # initialize the result matrix
+        n_atoms = len(self.ligand_atoms)
+        res = dict()
+
+        # analyze each force
+        forces = self.simulation.system.getForces()
+        for force in forces:
+            name = force.__class__.__name__
+            if name == "NonbondedForce":
+                res[0] = self._analyze_nonbonded_force(force)
+            elif name == "HarmonicBondForce":
+                res[1] = self._analyze_harmonic_bond_force(force)
+            elif name == "HarmonicAngleForce":
+                res[2] = self._analyze_harmonic_angle_force(force)
+            elif name == "PeriodicTorsionForce":
+                res[3] = self._analyze_periodic_torsion_force(force)
+
+        if as_numpy == False:
+            return res
+
+        if as_numpy == True:
+            # the returning matrix will be in the shape of (n_atoms * 4)
+            # the columns represent, respectively:
+                # nonbonded force
+                # bond force
+                # angle force
+                # torsion force
+            # the element in i'th row and j'th column of the matrix is
+            # the j'th atom's i'th type of force
+
+            # TODO: set values without using for loop
+            res_matrix = np.zeros((n_atoms, 4))
+            for idx_force in range(4):
+                for idx_atom in range(n_atoms):
+                    res_matrix[idx_atom, idx_force] = res[idx_force][self.ligand_atoms[idx_atom]]._value
+            return res_matrix
+
+    def _analyze_atom_energies_with_all_checkpoint_positions(self):
+        """
+        analyze the atom emergies with all the checkpoints
+        """
+        atom_energies_with_all_checkpoint_positions_ = []
+        for checkpoint_frame in range(len(self._checkpoint_schedule)):
+            ref_positions = self.read_positions(checkpoint_frame)
+            atom_energies_at_ref_positions = self._analyze_atom_energies_in_simulation_with_positions(ref_positions) # shape: n_atoms * 4
+            atom_energies_with_all_checkpoint_positions_.append(atom_energies_at_ref_positions)
+        atom_energies_with_all_checkpoint_positions_ = np.array(atom_energies_with_all_checkpoint_positions_)
+        self.atom_energies_with_all_checkpoint_positions = atom_energies_with_all_checkpoint_positions_
+        return atom_energies_with_all_checkpoint_positions_
+
+    def _free_energy_weights(self, ref_checkpoint_idx, ptb_checkpoint_idx = None,
+                                   ptb_state_idx = None, all_checkpoints = True):
+        """
+        calculates $\Delta U$ and $\Delta u_a$ this function:
+
+        $$
+        \Delta F_{AB}(a) = \frac{<\frac{\Delta u_k}{\Delta U}(e^(-\beta \Delta U) - 1)>}
+                                {<e^(\beta \Delta U) - 1>}
+        $$
+
+
+        params
+        ------
+        reference_checkpoint_idx : the checkpoint idx with the positions information (state A)
+        perturbation_state_idx : the perturbation state idx (state B)
+        perturbation_checkpoint_idx : the perturbation state checkpoint idx
+
+        returns
+        -------
+        delta_u_a : n_atoms * 1 np array
+        delta_u : float
+        """
+
+        # get the state indicies
+        ref_state_idx = self._thermodynamic_states[self._checkpoint_schedule[ref_checkpoint_idx]]
+        if ptb_state_idx == None:
+            try:
+                ptb_state_idx = self._thermodynamic_states[self._checkpoint_schedule[ptb_checkpoint_idx]]
+            except:
+                raise ValueError('no info was provided with perturbation state')
+
+        # get the positions
+        if all_checkpoints == True:
+            atom_energies_at_ref_positions = self.atom_energies_with_all_checkpoint_positions[ref_checkpoint_idx]
+
+        else:
+            ref_positions = self.analyzer.read_positions(self._checkpoint_schedule[ref_checkpoint_idx])
+            atom_energies_at_ref_positions = self._analyze_atom_energies_in_simulation_with_positions(ref_positions) # shape: n_atoms * 4
+
+        # get the configuration at reference state
+        nonbonded_atom_energies_at_ref_positions = atom_energies_at_ref_positions[:, 0]
+
+        # get the total energies at both state
+        energies_ref_positions = self.reporter.read_energies(self._checkpoint_schedule[ref_checkpoint_idx])[0].flatten()
+        energy_ref_position_ref_state = energies_ref_positions[ref_state_idx]
+        energy_ref_position_ptb_state = energies_ref_positions[ptb_state_idx]
+
+        # get the lambda values
+        ref_lambda_electrostatics = self.lambda_electrostatics_schedule[ref_state_idx]
+        ptb_lambda_electrostatics = self.lambda_electrostatics_schedule[ptb_state_idx]
+        diff_lambda_electrostatics = ref_lambda_electrostatics - ptb_lambda_electrostatics
+
+        # compute the atomic free energy contribution weights
+        # TODO: it is not a good idea to assume the linearity here
+        delta_u_a = diff_lambda_electrostatics * nonbonded_atom_energies_at_ref_positions
+        delta_u = energy_ref_position_ref_state - energy_ref_position_ptb_state
+
+        return delta_u_a, delta_u
+
+
+    def _average_free_energy_weights_by_state(self, ref_state_idx, ptb_state_idx):
+        """
+        averaging the free energy weights by states, implementing
+
+        $$
+        \Delta F_{AB}(a) = \frac{<\frac{\Delta u_k}{\Delta U}(e^(-\beta \Delta U) - 1)>}
+                                {<e^(\beta \Delta U) - 1>}
+        $$
+
+        params
+        ------
+        reference_state_idx
+        perturbation_state_idx
+
+        returns
+        -------
+        weights : the free energy weights for each atom
+        """
+
+        # initialize numerator and demoninator in the averaging eq
+        numerators = []
+        denominators = []
+
+        # $\beta = (kT) ^ (-1)$
+        beta = self.beta_schedule[ref_state_idx]
+
+        ref_checkpoint_idxs = self.states_checkpoints_mapping[ref_state_idx]
+        for ref_checkpoint_idx in ref_checkpoint_idxs:
+            delta_u_a, delta_u = self._free_energy_weights(ref_checkpoint_idx = ref_checkpoint_idx,
+                        ptb_state_idx = ptb_state_idx,
+                        all_checkpoints = True)
+            temp_weight = np.exp(-beta * delta_u) - 1
+            numerator = np.true_divide(temp_weight, delta_u) * delta_u_a
+            denominator = temp_weight
+
+            numerators.append(numerator)
+            denominators.append(denominator)
+
+        numerators = np.array(numerators)
+        denominators = np.array(denominators)
+
+        avg_numerator = np.average(numerators, axis = 0)
+        avg_denominator = np.average(denominators)
+
+        weights = np.true_divide(avg_numerator, avg_denominator)
+        return(weights)
