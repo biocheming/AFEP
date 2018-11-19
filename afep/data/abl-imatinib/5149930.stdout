@@ -1,0 +1,55 @@
+Sender: LSF System <lsfadmin@lt21>
+Subject: Job 5149930: <trial> in cluster <lila> Exited
+
+Job <trial> was submitted from host <lilac> by user <wangy1> in cluster <lila> at Mon Nov  5 16:28:36 2018
+Job was executed on host(s) <4*lt21>, in queue <gpuqueue>, as user <wangy1> in cluster <lila> at Mon Nov  5 16:28:36 2018
+</home/wangy1> was used as the home directory.
+</data/chodera/wangyq/AFEP/afep/data/abl-imatinib> was used as the working directory.
+Started at Mon Nov  5 16:28:36 2018
+Terminated at Tue Nov  6 00:28:38 2018
+Results reported at Tue Nov  6 00:28:38 2018
+
+Your job looked like:
+
+------------------------------------------------------------
+# LSBATCH: User input
+#BSUB -q gpuqueue
+#BSUB -J trial
+#BSUB -m "ls-gpu lt-gpu"
+#BSUB -n 4 -R "rusage[mem=4] span[ptile=4]"
+#BSUB -gpu "num=4:j_exclusive=yes:mode=shared"
+#BSUB -W 8:00
+#BSUB -o %J.stdout
+#BSUB -eo %J.stderr
+
+chmod +x explicit.yaml
+# mpirun yank script --yaml=sams.yaml
+build_mpirun_configfile "yank script --yaml=explicit.yaml"
+mpiexec.hydra -f hostfile -configfile configfile
+
+------------------------------------------------------------
+
+TERM_RUNLIMIT: job killed after reaching LSF run time limit.
+Exited with exit code 140.
+
+Resource usage summary:
+
+    CPU time :                                   100185.00 sec.
+    Max Memory :                                 12 GB
+    Average Memory :                             11.52 GB
+    Total Requested Memory :                     16.00 GB
+    Delta Memory :                               4.00 GB
+    Max Swap :                                   -
+    Max Processes :                              24
+    Max Threads :                                1033
+    Run time :                                   28802 sec.
+    Turnaround time :                            28802 sec.
+
+The output (if any) follows:
+
+
+
+PS:
+
+Read file <5149930.stderr> for stderr output of this job.
+

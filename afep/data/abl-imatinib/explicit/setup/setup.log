@@ -1,0 +1,14 @@
+2018-11-13 19:00:50,082 - DEBUG - yank.mpi - Group 1/4 Node 1/1: execute _setup_molecules(STI)
+2018-11-13 19:02:20,551 - DEBUG - openmoltools.openeye - 4-[(4-methylpiperazin-1-ium-1-yl)methyl]-~{N}-[4-methyl-3-[[4-(3-pyridyl)pyrimidin-2-yl]amino]phenyl]benzamide
+2018-11-13 19:02:20,573 - DEBUG - root - Fixing net charge from 1.0007999999999997 to 1.0
+2018-11-13 19:02:21,399 - DEBUG - yank.mpi - Node 1/4: waiting for barrier after _setup_molecules
+2018-11-13 19:02:21,401 - DEBUG - yank.mpi - Group 1/4 Node 1/1: execute get_system(Abl-STI)
+2018-11-13 19:02:21,402 - INFO - yank.pipeline - Setting up the systems for Abl and STI using solvent pme
+2018-11-13 19:02:21,402 - DEBUG - yank.pipeline - Setting up solvent phase
+2018-11-13 19:02:25,276 - DEBUG - yank.pipeline - Setting up complex phase
+2018-11-13 19:02:25,277 - DEBUG - root - Adding 1 Cl- ion to neutralize ligand charge of 1
+2018-11-13 19:03:41,320 - DEBUG - yank.mpi - Node 1/4: waiting for barrier after get_system
+2018-11-13 19:03:41,322 - DEBUG - yank.mpi - Node 1/4: executing <function ExperimentBuilder._generate_yaml at 0x2ad31e6470d0>
+2018-11-13 19:03:41,357 - DEBUG - yank.mpi - Node 1/4: waiting for barrier after <function ExperimentBuilder._generate_yaml at 0x2ad31e6470d0>
+2018-11-13 19:03:41,357 - DEBUG - yank.mpi - Node 1/4: waiting for barrier after _generate_experiment_protocol
+2018-11-13 19:03:41,362 - DEBUG - yank.mpi - Group 1/1 Node 1/4: execute _run_experiment(('', {'sampler': 'multistate', 'system': 'Abl-STI', 'protocol': 'absolute-binding', 'restraint': {'type': 'Boresch'}}))

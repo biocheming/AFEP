@@ -1,0 +1,5 @@
+2018-11-13 19:02:21,399 - DEBUG - yank.mpi - Node 4/4: waiting for barrier after _setup_molecules
+2018-11-13 19:03:41,320 - DEBUG - yank.mpi - Node 4/4: waiting for barrier after get_system
+2018-11-13 19:03:41,322 - DEBUG - yank.mpi - Node 4/4: waiting for barrier after <function ExperimentBuilder._generate_yaml at 0x2b27a19cd0d0>
+2018-11-13 19:03:41,357 - DEBUG - yank.mpi - Node 4/4: waiting for barrier after _generate_experiment_protocol
+2018-11-13 19:03:41,362 - DEBUG - yank.mpi - Group 1/1 Node 4/4: execute _run_experiment(('', {'sampler': 'multistate', 'system': 'Abl-STI', 'protocol': 'absolute-binding', 'restraint': {'type': 'Boresch'}}))

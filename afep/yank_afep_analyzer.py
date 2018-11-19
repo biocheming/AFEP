@@ -100,6 +100,7 @@ class YankAtomEnergyAnalyzer:
         self.reporter = reporter
 
         assert reporter.storage_exists(), "there is no checkpoint file!"
+        print(reporter.n_replicas)
         assert (reporter.n_replicas == 1), "currently we don't support replica exchange analysis"
 
         # get the reference system
@@ -180,12 +181,12 @@ class YankAtomEnergyAnalyzer:
         """
         read the positions in checkpoint so that we could apply them
 
-        returns
+        Returns
         -------
         positions : positions object
         """
 
-        positions = self.reporter.read_sampler_states(self.checkpoint_schedule[checkpoint_idx])[0].positions
+        positions = self.reporter.read_sampler_states(self.checkpoint_schedule[checkpoint_idx], analysis_particles_only=False)[0].positions
         return positions
 
     #=========================================================================
@@ -205,11 +206,11 @@ class YankAtomEnergyAnalyzer:
 
         so the argument force is actually ignored.
 
-        parameters
+        Parameters
         ----------
         force : an OpenMM force object, has to be NonbondedForce
 
-        returns
+        Returns
         -------
         energy_dict : a dictionary mapping atom idxs to the energies
         """
@@ -230,7 +231,7 @@ class YankAtomEnergyAnalyzer:
 
             # set the properties back
             force.setParticleParameters(idx, charge = charge, sigma = sigma, epsilon = epsilon)
-            force.updateParametersInContext(self.simulation.context) # set the parameters back to original
+            force.updateParametersInContext(self.simulation.context) # set the Parameters back to original
 
         return energy_dict
 
@@ -238,7 +239,7 @@ class YankAtomEnergyAnalyzer:
         """
         analyze the harmonic anlge force
 
-        returns
+        Returns
         -------
         energy_dict : an dictionary containing the sum of harmonic angle forces
                       of each atom
@@ -269,7 +270,7 @@ class YankAtomEnergyAnalyzer:
         """
         analyze the harmonic bond force
 
-        returns
+        Returns
         -------
         energy_dict : an dictionary containing the sum of harmonic bond forces
                       of each atom
@@ -300,7 +301,7 @@ class YankAtomEnergyAnalyzer:
         """
         analyze the periodic torsion force
 
-        returns
+        Returns
         -------
         energy_dict : an dictionary containing the sum of periodic torsion forces
                       of each atom
@@ -340,12 +341,12 @@ class YankAtomEnergyAnalyzer:
         calculate the distance between two atoms
         require that self.pos is defined
 
-        parameters
+        Parameters
         ----------
         atom0 : the idx of the first atom
         atom1 : the idx of the second atom
 
-        returns
+        Returns
         -------
         dist : a float representing the distance between the two atoms
         """
@@ -367,13 +368,13 @@ class YankAtomEnergyAnalyzer:
 
         $ cos(<v0, v1>) = (v0 \dot v1) / |v0||v1| $
 
-        parameters
+        Parameters
         ----------
         center_atom : the idx of the center atom
         atom0 : the idx of the first atom involved in the angle
         atom1 : the idx of the second atom involved in the angle
 
-        returns
+        Returns
         -------
         angle : the value of the angle in rads
         """
@@ -413,14 +414,14 @@ class YankAtomEnergyAnalyzer:
         \Phi = |n_A \dot n_B| / |n_A||n_B|
         $$
 
-        parameters
+        Parameters
         ----------
         atom0 : the idx of the first atom involved in the torsion
         atom1 : the idx of the second atom involved in the torsion
         atom2 : the idx of the thrid atom involved in the torsion
         atom3 : the idx of the fourth atom involved in the torsion
 
-        returns
+        Returns
         -------
         angle : the value of the dihedral angle in rads
         """
@@ -463,7 +464,7 @@ class YankAtomEnergyAnalyzer:
         ------
         positions : xyz of each atoms, including that of solvents
 
-        returns
+        Returns
         -------
             as_numpy == True:
                 res_matrix : a matrix with shape (n_atoms, 4), recording the energy contribution of each part
@@ -544,7 +545,7 @@ class YankAtomEnergyAnalyzer:
         perturbation_state_idx : the perturbation state idx (state B)
         perturbation_checkpoint_idx : the perturbation state checkpoint idx
 
-        returns
+        Returns
         -------
         delta_u_a : n_atoms * 1 np array
         delta_u : float
@@ -601,7 +602,7 @@ class YankAtomEnergyAnalyzer:
         reference_state_idx
         perturbation_state_idx
 
-        returns
+        Returns
         -------
         weights : the free energy weights for each atom
         """
